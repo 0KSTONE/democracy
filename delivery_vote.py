@@ -138,6 +138,7 @@ class FinanceSnapshot:
     miles_per_hr: float              # avg miles driven per working hour
     energy_level: int                # 1..5 honest energy
     hours_available_today: float     # max hours you can work today
+    wants_cost: float        # Optional cost for wants (e.g., $50 for leisure)
 
 def build_delivery_options_from_templates(fin: FinanceSnapshot) -> Dict[str, Dict]:
     """
@@ -149,7 +150,9 @@ def build_delivery_options_from_templates(fin: FinanceSnapshot) -> Dict[str, Dic
         "B_SHORT": {"hours": min(3.0, fin.hours_available_today)},
         "C_FULL":  {"hours": min(6.0, fin.hours_available_today)},
     }
+    # Step 2: Incorporate "wants" cost into the delivery options computation
     need_gap = max(0.0, fin.bills_due_next_7d - fin.cash_on_hand)  # dollars needed this week
+    wants_gap = max(0.0, fin.wants_cost - max(0.0, fin.cash_on_hand - fin.bills_due_next_7d))
 
     options: Dict[str, Dict] = {}
     for cid, t in templates.items():
@@ -160,7 +163,7 @@ def build_delivery_options_from_templates(fin: FinanceSnapshot) -> Dict[str, Dic
         gas_cost = (miles / max(1e-6, fin.mpg)) * fin.gas_price_per_gal
         maint_cost = 0.15 * miles
         net = gross - gas_cost - maint_cost
-        gap_covered = min(net, need_gap)
+        gap_covered = min(net, need_gap + 0.5 * wants_gap)  # Wants are weighted less
         options[cid] = {
             "mode": cid, "hours": h,
             "gross": round(gross, 2),
@@ -168,6 +171,7 @@ def build_delivery_options_from_templates(fin: FinanceSnapshot) -> Dict[str, Dic
             "maint_cost": round(maint_cost, 2),
             "net": round(net, 2),
             "need_gap": round(need_gap, 2),
+            "wants_gap": round(wants_gap, 2),
             "gap_covered": round(gap_covered, 2),
             "energy_required": 2 if h==0 else (3 if h<=3 else 4),
             "energy_level": fin.energy_level,
@@ -180,7 +184,8 @@ def build_delivery_options_from_templates(fin: FinanceSnapshot) -> Dict[str, Dic
 # ---------- Agents tuned for delivery choice ----------
 def money_agent(history: HistoryStats):
     def _score(o: Dict) -> Score:
-        gap = o["need_gap"]; net = o["net"]; h = o["hours"]
+        gap = o["need_gap"] + 0.5 * o["wants_gap"]  # Wants are weighted less
+        net = o["net"]; h = o["hours"]
         if h == 0:
             return 1 if gap > 0 else 5
         cover = o["gap_covered"]
@@ -295,7 +300,7 @@ def decide_delivery(fin: FinanceSnapshot, history_path: str = "delivery_history.
 # ---------- CLI demo ----------
 if __name__ == "__main__":
     fin = FinanceSnapshot(
-        cash_on_hand=16.0,
+        cash_on_hand=110.0,
         bills_due_next_7d=420.0,
         gas_price_per_gal=3.60,
         mpg=15.0,
@@ -304,5 +309,6 @@ if __name__ == "__main__":
         miles_per_hr=12.0,
         energy_level=3,
         hours_available_today=6.0,
+        wants_cost=165.0,
     )
     decide_delivery(fin)
