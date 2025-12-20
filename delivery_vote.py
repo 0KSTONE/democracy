@@ -25,7 +25,8 @@ class HistoryEntry:
     hours: float
     gross: float
     net: float
-    actual_net: Optional[float] = None  # Added field for actual net earnings
+    actual_hours: Optional[float] = None  # Added field for actual hours worked
+    actual_net: Optional[float] = None    # Added field for actual net earnings
 
 @dataclass
 class HistoryStats:
@@ -293,14 +294,16 @@ def decide_delivery(fin: FinanceSnapshot, history_path: str = "delivery_history.
         choice=winner,
         hours=options[winner]["hours"],
         gross=options[winner]["gross"],
-        net=options[winner]["net"]
+        net=options[winner]["net"],
+        actual_hours=options[winner]["hours"],  # Use computed hours as default
+        actual_net=options[winner]["net"]       # Use computed net as default
     ))
     return winner, options
 
 # ---------- CLI demo ----------
 if __name__ == "__main__":
     fin = FinanceSnapshot(
-        cash_on_hand=110.0,
+        cash_on_hand=120.0,
         bills_due_next_7d=420.0,
         gas_price_per_gal=3.60,
         mpg=15.0,
